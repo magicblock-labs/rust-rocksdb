@@ -3248,6 +3248,43 @@ impl Options {
         }
     }
 
+    /// Use to control I/O rate of flush and compaction with an explicit
+    /// [`RateLimiterMode`]. Unlike [`Options::set_ratelimiter`], which only
+    /// throttles writes, this allows throttling compaction reads as well
+    /// (`RateLimiterMode::AllIo`), which matters for read-heavy compactions
+    /// such as range deletions where most input data is discarded.
+    ///
+    /// Default: disable
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rocksdb::{Options, RateLimiterMode};
+    ///
+    /// let mut options = Options::default();
+    /// options.set_ratelimiter_with_mode(1024 * 1024, 100 * 1000, 10, RateLimiterMode::AllIo, false);
+    /// ```
+    pub fn set_ratelimiter_with_mode(
+        &mut self,
+        rate_bytes_per_sec: i64,
+        refill_period_us: i64,
+        fairness: i32,
+        mode: RateLimiterMode,
+        auto_tuned: bool,
+    ) {
+        unsafe {
+            let ratelimiter = ffi::rocksdb_ratelimiter_create_with_mode(
+                rate_bytes_per_sec,
+                refill_period_us,
+                fairness,
+                mode as c_int,
+                auto_tuned,
+            );
+            ffi::rocksdb_options_set_ratelimiter(self.inner, ratelimiter);
+            ffi::rocksdb_ratelimiter_destroy(ratelimiter);
+        }
+    }
+
     /// Sets the maximal size of the info log file.
     ///
     /// If the log file is larger than `max_log_file_size`, a new info log file
@@ -3777,6 +3814,20 @@ pub enum ReadTier {
     Persisted,
     /// Reads data in memtable. Used for memtable only iterators.
     Memtable,
+}
+
+/// Controls which I/O a rate limiter created via
+/// [`Options::set_ratelimiter_with_mode`] applies to.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[repr(i32)]
+pub enum RateLimiterMode {
+    /// Throttle background reads (compaction input).
+    ReadsOnly = 0,
+    /// Throttle background writes (flush and compaction output).
+    /// This is the mode used by [`Options::set_ratelimiter`].
+    WritesOnly = 1,
+    /// Throttle all background I/O, reads and writes.
+    AllIo = 2,
 }
 
 #[repr(i32)]
