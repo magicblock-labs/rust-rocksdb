@@ -34,6 +34,8 @@ fn rocksdb_include_dir() -> String {
 fn bindgen_rocksdb() {
     let bindings = bindgen::Builder::default()
         .header(rocksdb_include_dir() + "/rocksdb/c.h")
+        .header("ratelimiter_ext.h")
+        .clang_arg(format!("-I{}", rocksdb_include_dir()))
         .derive_debug(false)
         .blocklist_type("max_align_t") // https://github.com/rust-lang-nursery/rust-bindgen/issues/550
         .ctypes_prefix("libc")
@@ -375,6 +377,7 @@ fn build_rocksdb() {
     }
 
     config.file("build_version.cc");
+    config.file("ratelimiter_ext.cc");
 
     config.cpp(true);
 
