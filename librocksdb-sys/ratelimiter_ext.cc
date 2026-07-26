@@ -1,3 +1,5 @@
+#include "ratelimiter_ext.h"
+
 #include <cstdint>
 #include <memory>
 
@@ -13,5 +15,9 @@ struct rocksdb_ratelimiter_t {
 
 extern "C" void rocksdb_ratelimiter_set_bytes_per_second(
     rocksdb_ratelimiter_t* limiter, int64_t rate_bytes_per_sec) {
+  // SetBytesPerSecond requires a positive rate (asserted in debug builds).
+  if (rate_bytes_per_sec <= 0) {
+    return;
+  }
   limiter->rep->SetBytesPerSecond(rate_bytes_per_sec);
 }
