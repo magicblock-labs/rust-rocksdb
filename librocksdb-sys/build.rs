@@ -34,6 +34,8 @@ fn rocksdb_include_dir() -> String {
 fn bindgen_rocksdb() {
     let bindings = bindgen::Builder::default()
         .header(rocksdb_include_dir() + "/rocksdb/c.h")
+        .header("ratelimiter_ext.h")
+        .clang_arg(format!("-I{}", rocksdb_include_dir()))
         .derive_debug(false)
         .blocklist_type("max_align_t") // https://github.com/rust-lang-nursery/rust-bindgen/issues/550
         .ctypes_prefix("libc")
@@ -490,11 +492,29 @@ fn cpp_link_stdlib(target: &str) {
     }
 }
 
+/// Compiled on every path (source build, system-linked, FreeBSD): bindgen
+/// always declares rocksdb_ratelimiter_set_bytes_per_second, so the symbol
+/// must always be defined.
+fn build_ratelimiter_ext() {
+    let mut config = cc::Build::new();
+    config.cpp(true);
+    config.include(rocksdb_include_dir());
+    if env::var("TARGET").unwrap().contains("msvc") {
+        config.flag("-EHsc");
+        config.flag("-std:c++17");
+    } else {
+        config.flag(&cxx_standard());
+    }
+    config.file("ratelimiter_ext.cc");
+    config.compile("ratelimiter_ext");
+}
+
 fn main() {
     if !Path::new("rocksdb/AUTHORS").exists() {
         update_submodules();
     }
     bindgen_rocksdb();
+    build_ratelimiter_ext();
     let target = env::var("TARGET").unwrap();
 
     if !try_to_find_and_link_lib("ROCKSDB") {
